@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Hardened Global Helpers
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    function isBoundedStringList(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || arr[0] is string);
+    }
+
+    function isValidDailyChallenge(dc) {
+      return dc is map
+        && dc.keys().hasAll(['tanggal', 'selesai'])
+        && dc.keys().hasOnly(['tanggal', 'selesai'])
+        && dc.tanggal is string && dc.tanggal.size() >= 8 && dc.tanggal.size() <= 20
+        && dc.selesai is bool;
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints
+    // =========================================================================
+    function isValidUserProgress(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'namaAlias', 'isPro', 'xp', 'level', 'totalPoin',
+          'badge', 'materiSelesai', 'kuisSelesai', 'simulasiDicoba',
+          'dailyChallenge', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'namaAlias', 'isPro', 'proPlanName', 'xp', 'level',
+          'totalPoin', 'badge', 'materiSelesai', 'kuisSelesai',
+          'simulasiDicoba', 'dailyChallenge', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.userId) && data.userId == userId && data.userId == request.auth.uid
+        && data.namaAlias is string && data.namaAlias.size() >= 1 && data.namaAlias.size() <= 24
+        && data.isPro is bool
+        && (!('proPlanName' in data) || (data.proPlanName is string && data.proPlanName.size() <= 80))
+        && data.xp is number && data.xp >= 0 && data.xp <= 10000000
+        && data.level is number && data.level >= 1 && data.level <= 100000
+        && data.totalPoin is number && data.totalPoin >= 0 && data.totalPoin <= 10000000
+        && isBoundedStringList(data.badge, 20)
+        && isBoundedStringList(data.materiSelesai, 40)
+        && isBoundedStringList(data.kuisSelesai, 100)
+        && isBoundedStringList(data.simulasiDicoba, 20)
+        && isValidDailyChallenge(data.dailyChallenge)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['userId', 'email', 'authProvider', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'email', 'authProvider', 'createdAt', 'updatedAt'])
+        && isValidId(data.userId) && data.userId == userId && data.userId == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.authProvider is string && data.authProvider.size() >= 1 && data.authProvider.size() <= 40
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProTransaction(data, userId, transactionId) {
+      return data.keys().hasAll([
+          'invoiceId', 'userId', 'planId', 'planName', 'subtotal',
+          'discount', 'adminFee', 'total', 'method', 'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'invoiceId', 'userId', 'planId', 'planName', 'subtotal',
+          'discount', 'adminFee', 'total', 'method', 'status', 'paidAt', 'createdAt'
+        ])
+        && isValidId(data.invoiceId) && data.invoiceId == transactionId && data.invoiceId.size() <= 64
+        && isValidId(data.userId) && data.userId == userId && data.userId == request.auth.uid
+        && data.planId in ['monthly', 'yearly', 'lifetime']
+        && data.planName is string && data.planName.size() >= 1 && data.planName.size() <= 80
+        && data.subtotal is number && data.subtotal >= 0 && data.subtotal <= 10000000
+        && data.discount is number && data.discount >= 0 && data.discount <= 10000000
+        && data.adminFee is number && data.adminFee >= 0 && data.adminFee <= 100000
+        && data.total is number && data.total >= 0 && data.total <= 10000000
+        && data.method is string && data.method.size() >= 1 && data.method.size() <= 80
+        && data.status == 'LUNAS (Paid)'
+        && (!('paidAt' in data) || (data.paidAt is string && data.paidAt.size() <= 64))
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId)
+        && isValidUserProgress(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidUserProgress(incoming(), userId)
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'namaAlias', 'isPro', 'proPlanName', 'xp', 'level', 'totalPoin',
+          'badge', 'materiSelesai', 'kuisSelesai', 'simulasiDicoba',
+          'dailyChallenge', 'updatedAt'
+        ]);
+      allow delete: if false;
+
+      // Isolated PII Subcollection (Master Gate checks parent /users/{userId})
+      match /private/{docId} {
+        allow get: if isOwner(userId) && isValidId(docId) && docId == 'account'
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if false;
+        allow create: if isOwner(userId) && isValidId(docId) && docId == 'account'
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserPrivateInfo(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId) && isValidId(docId) && docId == 'account'
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserPrivateInfo(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'authProvider', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      // Immutable PRO Subscription Receipts (Master Gate + Terminal State Lock)
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isOwner(userId)
+          && resource.data.userId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(transactionId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidProTransaction(incoming(), userId, transactionId)
+          && incoming().createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
