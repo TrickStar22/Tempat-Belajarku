@@ -2,6 +2,7 @@ import { getQRISSVG } from '../assets/illustrations.js';
 import { PRICING_PLANS } from '../data/curriculum.js';
 import { calculateCheckoutTotals } from '../state/store.js';
 import { escapeHTML, formatCountdown, formatRupiah } from '../utils/formatters.js';
+import { buildQRISPayload } from '../utils/qris.js';
 
 export function renderPremiumView(root, ctx) {
   const {
@@ -13,6 +14,7 @@ export function renderPremiumView(root, ctx) {
     onCreateOrder,
     onBackToSelect,
     onCopyVA,
+    onCopyQRIS,
     onSimulatePaymentSuccess,
     onViewReceipt,
     onExploreProMateri
@@ -23,6 +25,7 @@ export function renderPremiumView(root, ctx) {
     const ord = checkoutState.activeOrder;
     const isQRIS = checkoutState.paymentCategory === 'qris';
     const isVA = checkoutState.paymentCategory === 'va';
+    const qrisPayload = isQRIS ? buildQRISPayload({ invoiceId: ord.invoiceId, total: ord.total }) : '';
 
     root.innerHTML = `
       <div style="max-width:640px; margin:0 auto;">
@@ -47,10 +50,25 @@ export function renderPremiumView(root, ctx) {
 
             ${isQRIS
               ? `
-                <div style="margin:1rem auto 0.6rem; width:190px; height:190px; background:#FFFDF7; border:3px solid var(--ink-black); border-radius:16px; display:flex; align-items:center; justify-content:center; padding:0.6rem;">
-                  ${getQRISSVG()}
+                <div class="qris-card" data-testid="qris-card">
+                  <div class="qris-header">
+                    <span class="qris-brand-tag">QRIS</span>
+                    <span class="qris-std-label">Standar Pembayaran Nasional</span>
+                  </div>
+                  <div class="qris-nmid">NMID: ID1026000012345 · DOODLELAB PRO</div>
+                  <div class="qris-matrix-box" id="qris-svg-wrap">
+                    ${getQRISSVG(ord)}
+                  </div>
+                  <div class="qris-footer tabular-nums">
+                    <span>${escapeHTML(ord.invoiceId)}</span>
+                    <b>${formatRupiah(ord.total)}</b>
+                  </div>
                 </div>
-                <p style="font-size:0.86rem; color:var(--ink-muted); font-weight:700;">Scan kode QRIS di atas menggunakan aplikasi e-wallet atau mobile banking.</p>
+                <div style="display:flex; gap:0.55rem; justify-content:center; flex-wrap:wrap; margin-bottom:0.7rem;">
+                  <button type="button" class="doodle-btn blue sm" id="btn-download-qris">Unduh QRIS</button>
+                  <button type="button" class="doodle-btn paper sm" id="btn-copy-qris">Salin Kode QRIS</button>
+                </div>
+                <p style="font-size:0.86rem; color:var(--ink-muted); font-weight:700;">Scan kode QRIS di atas menggunakan GoPay, OVO, DANA, ShopeePay, atau mobile banking.</p>
               `
               : isVA
                 ? `
@@ -78,6 +96,20 @@ export function renderPremiumView(root, ctx) {
 
     root.querySelector('#checkout-back-btn')?.addEventListener('click', onBackToSelect);
     root.querySelector('#copy-va-btn')?.addEventListener('click', () => onCopyVA(ord.vaNumber));
+    root.querySelector('#btn-copy-qris')?.addEventListener('click', () => onCopyQRIS?.(qrisPayload));
+    root.querySelector('#btn-download-qris')?.addEventListener('click', () => {
+      const svgMarkup = root.querySelector('#qris-svg-wrap svg')?.outerHTML;
+      if (!svgMarkup) return;
+      const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `QRIS-${ord.invoiceId}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
     root.querySelector('#btn-confirm-payment')?.addEventListener('click', onSimulatePaymentSuccess);
     return;
   }

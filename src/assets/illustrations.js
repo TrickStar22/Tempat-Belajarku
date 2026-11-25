@@ -1,3 +1,5 @@
+import { buildQRISPayload, generateQRCodeSVG } from '../utils/qris.js';
+
 export function getBrandLogoSVG() {
   return `
     <svg width="36" height="36" viewBox="0 0 48 48" fill="none" stroke="#292D32" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -10,18 +12,12 @@ export function getBrandLogoSVG() {
   `;
 }
 
-export function getQRISSVG() {
-  return `
-    <svg viewBox="0 0 120 120" width="165" height="165" fill="none" stroke="#292D32" stroke-width="4" aria-label="Kode QRIS DoodleLab">
-      <rect x="10" y="10" width="32" height="32" rx="4" fill="#FFD66B"/>
-      <rect x="18" y="18" width="16" height="16" fill="#292D32"/>
-      <rect x="78" y="10" width="32" height="32" rx="4" fill="#75B9E7"/>
-      <rect x="86" y="18" width="16" height="16" fill="#292D32"/>
-      <rect x="10" y="78" width="32" height="32" rx="4" fill="#91C99A"/>
-      <rect x="18" y="86" width="16" height="16" fill="#292D32"/>
-      <path d="M52 14 H68 M52 28 H64 M14 54 H38 M52 52 H72 V70 H54 Z M84 54 H108 M52 84 H74 M86 82 H106 V106 H86 Z" stroke-linecap="round"/>
-    </svg>
-  `;
+export function getQRISSVG(order = {}) {
+  const payload = buildQRISPayload({
+    invoiceId: order.invoiceId,
+    total: order.total
+  });
+  return generateQRCodeSVG(payload, { size: 204, margin: 3 });
 }
 
 export function getDoodleSVG(type) {

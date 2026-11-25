@@ -736,6 +736,10 @@ export function renderApp() {
         await copyToClipboard(va);
         showToast('📋', 'Nomor Virtual Account disalin ke clipboard', 'var(--doodle-blue)');
       },
+      onCopyQRIS: async (payload) => {
+        await copyToClipboard(payload);
+        showToast('📋', 'Kode payload QRIS disalin ke clipboard', 'var(--doodle-blue)');
+      },
       onSimulatePaymentSuccess: () => {
         if (!checkoutState.activeOrder) return;
         cleanupActiveEffects();

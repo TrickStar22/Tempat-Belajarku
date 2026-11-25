@@ -946,6 +946,79 @@ dialog.doodle-dialog::backdrop {
   border-top: 2px dashed rgba(41, 45, 50, 0.35);
 }
 
+.qris-card {
+  margin: 1rem auto 0.85rem;
+  max-width: 310px;
+  background: #FFFFFF;
+  border: 3px solid var(--ink-black);
+  border-radius: 16px;
+  box-shadow: var(--sketch-shadow-sm);
+  padding: 0.9rem 1rem 0.95rem;
+  text-align: center;
+}
+
+.qris-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 2px dashed rgba(41, 45, 50, 0.25);
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.4rem;
+}
+
+.qris-brand-tag {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.8px;
+  color: #FFFFFF;
+  background: #D93829;
+  border: 2px solid var(--ink-black);
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  line-height: 1.2;
+}
+
+.qris-std-label {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+.qris-nmid {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  margin-bottom: 0.55rem;
+  white-space: nowrap;
+}
+
+.qris-matrix-box {
+  background: #FFFFFF;
+  border: 2px solid rgba(41, 45, 50, 0.15);
+  border-radius: 10px;
+  padding: 0.35rem;
+  margin: 0 auto 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qris-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  color: var(--ink-black);
+  border-top: 2px dashed rgba(41, 45, 50, 0.25);
+  padding-top: 0.45rem;
+}
+
 @media print {
   header.top-bar,
   #toast-container,
