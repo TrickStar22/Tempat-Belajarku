@@ -4,7 +4,7 @@ import { getTodayChallenge } from '../state/store.js';
 import { escapeHTML } from '../utils/formatters.js';
 
 export function renderDashboardView(root, ctx) {
-  const { state, onNavigate, onEditAlias, onAnswerDailyChallenge, onStartQuickQuiz } = ctx;
+  const { state, onNavigate, onEditAlias, onAnswerDailyChallenge, onStartQuickQuiz, onRequestUpgrade } = ctx;
   const dc = getTodayChallenge();
   const dcDone = state.dailyChallenge.selesai;
 
@@ -133,7 +133,10 @@ export function renderDashboardView(root, ctx) {
   `;
 
   root.querySelector('#btn-edit-alias')?.addEventListener('click', onEditAlias);
-  root.querySelector('#dash-upgrade-btn')?.addEventListener('click', () => onNavigate('premium'));
+  root.querySelector('#dash-upgrade-btn')?.addEventListener('click', () => {
+    if (onRequestUpgrade) onRequestUpgrade();
+    else onNavigate('premium');
+  });
   root.querySelector('#dash-tx-btn')?.addEventListener('click', () => onNavigate('premium'));
   root.querySelector('#dash-all-materi')?.addEventListener('click', () => onNavigate('materi', { category: 'Semua' }));
   root.querySelector('#dash-all-badges')?.addEventListener('click', () => onNavigate('pencapaian'));

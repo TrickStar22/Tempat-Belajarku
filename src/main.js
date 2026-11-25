@@ -67,6 +67,7 @@ let activeSimId = 'gravity';
 let mobileMenuOpen = false;
 let simCleanup = null;
 let paymentTimerInterval = null;
+let pendingAuthRedirectView = null;
 
 let quizSession = {
   active: false,
@@ -232,9 +233,10 @@ function openVerifyEmailModal() {
   });
 }
 
-function openAuthModal(initialTab = 'login') {
+function openAuthModal(initialTab = 'login', options = {}) {
   let tab = initialTab;
   let busy = false;
+  pendingAuthRedirectView = options.afterLoginView || null;
 
   function renderAuthBody(dialog) {
     const isLogin = tab === 'login';
@@ -318,7 +320,10 @@ function openAuthModal(initialTab = 'login') {
       }
     };
 
-    dialog.querySelector('#auth-close-btn')?.addEventListener('click', closeModal);
+    dialog.querySelector('#auth-close-btn')?.addEventListener('click', () => {
+      pendingAuthRedirectView = null;
+      closeModal();
+    });
     dialog.querySelector('#auth-tab-login')?.addEventListener('click', () => {
       if (busy) return;
       tab = 'login';
@@ -345,11 +350,14 @@ function openAuthModal(initialTab = 'login') {
 
     dialog.querySelector('#auth-guest-btn')?.addEventListener('click', async () => {
       if (busy) return;
+      pendingAuthRedirectView = null;
       try {
         await logoutFirebase();
       } catch {
         // Tetap lanjut ke mode tamu lokal
       }
+      checkoutState.step = 'select';
+      checkoutState.activeOrder = null;
       store.switchAccount('guest-local');
       closeModal();
       showToast('🧪', 'Masuk dalam Mode Tamu Lokal', 'var(--doodle-blue)');
@@ -400,6 +408,9 @@ function openAuthModal(initialTab = 'login') {
 }
 
 async function handleLogout() {
+  pendingAuthRedirectView = null;
+  checkoutState.step = 'select';
+  checkoutState.activeOrder = null;
   try {
     await logoutFirebase();
   } catch {
@@ -408,6 +419,29 @@ async function handleLogout() {
   store.switchAccount('guest-local');
   showToast('👋', 'Berhasil keluar ke Mode Tamu.', 'var(--warm-yellow)');
   navigate('dashboard');
+}
+
+function openLoginRequiredForProModal() {
+  openModal(`
+    <div style="font-size:3rem; margin-bottom:0.35rem;" aria-hidden="true">🔒</div>
+    <h2 id="modal-title" style="font-size:1.85rem; margin-bottom:0.5rem;">Login Diperlukan untuk Upgrade PRO</h2>
+    <p style="font-size:0.95rem; color:var(--ink-muted); margin-bottom:1.25rem;">
+      Untuk melakukan upgrade dan mengaktifkan <b>DoodleLab PRO</b>, silakan masuk dengan akun Google atau Email terlebih dahulu agar status PRO tersimpan aman ke akunmu.
+    </p>
+    <div style="display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
+      <button type="button" class="doodle-btn cream" id="pro-login-preview-btn">Lihat Paket Dulu</button>
+      <button type="button" class="doodle-btn blue" id="pro-login-now-btn">Masuk / Daftar Sekarang</button>
+    </div>
+  `, (dialog) => {
+    dialog.querySelector('#pro-login-preview-btn')?.addEventListener('click', () => {
+      closeModal();
+      navigate('premium');
+    });
+    dialog.querySelector('#pro-login-now-btn')?.addEventListener('click', () => {
+      closeModal();
+      openAuthModal('login', { afterLoginView: 'premium' });
+    });
+  });
 }
 
 function openProGateModal(title, description) {
@@ -423,7 +457,11 @@ function openProGateModal(title, description) {
     dialog.querySelector('#pro-gate-cancel')?.addEventListener('click', closeModal);
     dialog.querySelector('#pro-gate-upgrade')?.addEventListener('click', () => {
       closeModal();
-      navigate('premium');
+      if (store.getState().isGuest || !auth.currentUser) {
+        openLoginRequiredForProModal();
+      } else {
+        navigate('premium');
+      }
     });
   });
 }
@@ -545,6 +583,13 @@ export function renderApp() {
       onNavigate: navigate,
       onEditAlias: openEditAliasModal,
       onStartQuickQuiz: startQuickAllQuiz,
+      onRequestUpgrade: () => {
+        if (store.getState().isGuest || !auth.currentUser) {
+          openLoginRequiredForProModal();
+        } else {
+          navigate('premium');
+        }
+      },
       onAnswerDailyChallenge: (idx) => {
         const cur = store.getState();
         if (cur.dailyChallenge.selesai) return;
@@ -704,6 +749,11 @@ export function renderApp() {
         renderApp();
       },
       onCreateOrder: () => {
+        if (store.getState().isGuest || !auth.currentUser) {
+          showToast('🔒', 'Silakan masuk ke akun terlebih dahulu untuk upgrade PRO.', 'var(--warm-yellow)');
+          openAuthModal('login', { afterLoginView: 'premium' });
+          return;
+        }
         const { plan, subtotal, discount, adminFee, total } = calculateCheckoutTotals(
           checkoutState.selectedPlanId,
           checkoutState.appliedPromo ? checkoutState.appliedPromo.code : ''
@@ -740,7 +790,15 @@ export function renderApp() {
         await copyToClipboard(payload);
         showToast('📋', 'Kode payload QRIS disalin ke clipboard', 'var(--doodle-blue)');
       },
+      onRequireLogin: () => {
+        openAuthModal('login', { afterLoginView: 'premium' });
+      },
       onSimulatePaymentSuccess: () => {
+        if (store.getState().isGuest || !auth.currentUser) {
+          showToast('🔒', 'Silakan masuk ke akun terlebih dahulu untuk upgrade PRO.', 'var(--warm-yellow)');
+          openAuthModal('login', { afterLoginView: 'premium' });
+          return;
+        }
         if (!checkoutState.activeOrder) return;
         cleanupActiveEffects();
 
@@ -812,6 +870,10 @@ subscribeAuthState(async (user) => {
       localCur.namaAlias = fallbackAlias || 'Ilmuwan Sains';
     }
     store.setState(localCur);
+    if (pendingAuthRedirectView) {
+      currentView = pendingAuthRedirectView;
+      pendingAuthRedirectView = null;
+    }
     renderApp();
 
     if (user.emailVerified) {

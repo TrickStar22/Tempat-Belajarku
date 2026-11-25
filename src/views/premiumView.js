@@ -17,11 +17,12 @@ export function renderPremiumView(root, ctx) {
     onCopyQRIS,
     onSimulatePaymentSuccess,
     onViewReceipt,
-    onExploreProMateri
+    onExploreProMateri,
+    onRequireLogin
   } = ctx;
 
-  // STEP 2: Awaiting payment
-  if (checkoutState.step === 'awaiting' && checkoutState.activeOrder) {
+  // STEP 2: Awaiting payment (hanya untuk pengguna yang sudah login)
+  if (!state.isGuest && checkoutState.step === 'awaiting' && checkoutState.activeOrder) {
     const ord = checkoutState.activeOrder;
     const isQRIS = checkoutState.paymentCategory === 'qris';
     const isVA = checkoutState.paymentCategory === 'va';
@@ -114,8 +115,8 @@ export function renderPremiumView(root, ctx) {
     return;
   }
 
-  // STEP 3: Digital Receipt
-  if (checkoutState.step === 'receipt' && checkoutState.activeOrder) {
+  // STEP 3: Digital Receipt (hanya untuk pengguna yang sudah login)
+  if (!state.isGuest && checkoutState.step === 'receipt' && checkoutState.activeOrder) {
     const ord = checkoutState.activeOrder;
     root.innerHTML = `
       <div style="max-width:600px; margin:0 auto;">
@@ -164,6 +165,26 @@ export function renderPremiumView(root, ctx) {
       <h1 class="section-title">DoodleLab PRO · Paket Belajar Premium</h1>
       ${state.isPro ? '<span class="pro-badge">Status: PRO AKTIF</span>' : '<span class="meta-row">Status Saat Ini: Paket Gratis</span>'}
     </div>
+
+    ${state.isGuest
+      ? `
+        <section class="doodle-card" data-testid="pro-login-required-banner" style="background:linear-gradient(135deg, #E8F4FD 0%, #FFF7D6 100%); margin-bottom:1.5rem; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem;">
+          <div>
+            <div class="meta-row" style="color:var(--ink-black); margin-bottom:0.2rem;">
+              <span>🔒 Login Diperlukan</span>
+              <span class="meta-sep" aria-hidden="true">·</span>
+              <span>Mode Tamu Lokal</span>
+            </div>
+            <h2 style="font-size:1.45rem; margin-bottom:0.2rem;">Masuk Akun Terlebih Dahulu untuk Upgrade PRO</h2>
+            <p style="font-size:0.92rem; font-weight:700; color:var(--ink-muted); max-width:64ch;">
+              Status langganan DoodleLab PRO dan riwayat transaksi tersimpan ke akun Google/Firebase milikmu agar aman di semua perangkat.
+            </p>
+          </div>
+          <button type="button" class="doodle-btn blue" id="btn-pro-login-gate">Masuk / Daftar Sekarang</button>
+        </section>
+      `
+      : ''
+    }
 
     <div class="grid-3" style="margin-bottom:1.75rem;">
       ${PRICING_PLANS.map((p) => {
@@ -248,12 +269,19 @@ export function renderPremiumView(root, ctx) {
             </div>
           </div>
 
-          <button type="button" class="doodle-btn green" style="width:100%; font-size:1.05rem;" id="btn-create-order">
-            Lanjut ke Pembayaran (${formatRupiah(total)})
+          <button type="button" class="doodle-btn ${state.isGuest ? 'blue' : 'green'}" style="width:100%; font-size:1.05rem;" id="btn-create-order">
+            ${state.isGuest
+              ? `Masuk Akun untuk Upgrade PRO (${formatRupiah(total)})`
+              : `Lanjut ke Pembayaran (${formatRupiah(total)})`
+            }
           </button>
+          ${state.isGuest
+            ? '<p style="font-size:0.82rem; color:var(--ink-muted); font-weight:700; margin-top:0.55rem; text-align:center;">Anda perlu login terlebih dahulu sebelum melanjutkan pembayaran.</p>'
+            : ''
+          }
         </section>
 
-        ${state.transactions && state.transactions.length > 0
+        ${!state.isGuest && state.transactions && state.transactions.length > 0
           ? `
             <section class="doodle-card">
               <h3 style="font-size:1.4rem; margin-bottom:0.65rem;">Riwayat Transaksi Akun</h3>
@@ -274,6 +302,7 @@ export function renderPremiumView(root, ctx) {
     </div>
   `;
 
+  root.querySelector('#btn-pro-login-gate')?.addEventListener('click', () => onRequireLogin?.());
   root.querySelectorAll('[data-select-plan]').forEach((btn) => {
     btn.addEventListener('click', () => onSelectPlan(btn.dataset.selectPlan));
   });
